@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+<meta charset="UTF-8">
+<title>Electric Field Simulator v1.1.1</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="sim-area">
+<canvas id="simCanvas"></canvas>
+</div>
+
+<div class="control-panel">
+
+<h2>전하 제어</h2>
+
+<div class="charge-box">
+<h3>Charge A</h3>
+<input type="range" id="chargeA" min="-10" max="10" step="1" value="1">
+<span id="valueA">1</span>
+</div>
+
+<div class="charge-box">
+<h3>Charge B</h3>
+<input type="range" id="chargeB" min="-10" max="10" step="1" value="1">
+<span id="valueB">1</span>
+</div>
+
+<h3>측정된 전기장</h3>
+<div id="fieldValue">E = </div>
+
+<p class="info">
+클릭 → 측정점 생성<br>
+전하 드래그 → 위치 이동<br>
+전하 더블클릭 → 부호 변경
+</p>
+
+</div>
+
+</div>
+
+<script src="simulator.js"></script>
+
+</body>
+</html>

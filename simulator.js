@@ -1,7 +1,7 @@
 const canvas = document.getElementById("simCanvas")
 const ctx = canvas.getContext("2d")
 
-canvas.width = 1000
+canvas.width = 900
 canvas.height = 600
 
 const k = 8.99e9

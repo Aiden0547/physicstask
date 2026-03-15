@@ -11,18 +11,18 @@ const BASE_STEP = 4
 const MIN_STEP = 0.5
 const MAX_STEP = 6
 
-const SADDLE_THRESHOLD = 0.0000001
 const LINE_MIN_DIST = 6
 
-let probe = null
-let dragging = null
+let probe=null
+let dragging=null
 
-let charges = [
+let charges=[
 { name:"Charge A", x:300, y:300, q:1 },
 { name:"Charge B", x:600, y:300, q:-1 }
 ]
 
-let fieldLines = []
+let fieldLines=[]
+let fieldLineSources=[]
 
 function electricField(x,y){
 
@@ -70,17 +70,13 @@ let f=electricField(px,py)
 let n=normalize(f)
 
 if(!n) return dir
-
 return n
 
 }
 
 let k1=field(x,y)
-
 let k2=field(x+k1.x*step/2,y+k1.y*step/2)
-
 let k3=field(x+k2.x*step/2,y+k2.y*step/2)
-
 let k4=field(x+k3.x*step,y+k3.y*step)
 
 let nx=x+step*(k1.x+2*k2.x+2*k3.x+k4.x)/6
@@ -90,27 +86,13 @@ return {x:nx,y:ny,dir:k4}
 
 }
 
-function nearPositiveCharge(x,y){
+function nearCharge(x,y){
 
 for(let c of charges){
 
 let d=Math.hypot(x-c.x,y-c.y)
 
-if(d<18 && c.q>0) return true
-
-}
-
-return false
-
-}
-
-function nearNegativeCharge(x,y){
-
-for(let c of charges){
-
-let d=Math.hypot(x-c.x,y-c.y)
-
-if(d<18 && c.q<0) return true
+if(d<18) return true
 
 }
 
@@ -136,14 +118,6 @@ return false
 
 }
 
-function saddleRegion(x,y){
-
-let f=electricField(x,y)
-
-return magnitude(f)<SADDLE_THRESHOLD
-
-}
-
 function forbiddenDirection(c,angle){
 
 for(let other of charges){
@@ -159,7 +133,7 @@ let a=Math.atan2(dy,dx)
 
 let diff=Math.abs(angle-a)
 
-if(diff<0.3) return true
+if(diff<0.35) return true
 
 }
 
@@ -169,38 +143,85 @@ return false
 
 }
 
-function generateFieldLines(){
+function generateSeeds(){
 
-fieldLines=[]
+let seeds=[]
 
 for(let c of charges){
 
-if(c.q<=0) continue
+if(c.q>0){
 
 let count=Math.abs(c.q)*16
 
 for(let i=0;i<count;i++){
 
-let angle=2*Math.PI*i/count
+let a=2*Math.PI*i/count
 
-if(forbiddenDirection(c,angle)) continue
+if(forbiddenDirection(c,a)) continue
 
-let x=c.x+16*Math.cos(angle)
-let y=c.y+16*Math.sin(angle)
+seeds.push({
+x:c.x+16*Math.cos(a),
+y:c.y+16*Math.sin(a),
+dir:{x:Math.cos(a),y:Math.sin(a)},
+source:c.q
+})
 
-let dir={x:Math.cos(angle),y:Math.sin(angle)}
+}
+
+}
+
+}
+
+let negativeCount=charges.filter(c=>c.q<0).length
+
+if(negativeCount>0){
+
+let edgeSeeds=32
+
+for(let i=0;i<edgeSeeds;i++){
+
+let x=i*(canvas.width/edgeSeeds)
+
+seeds.push({x:x,y:0,dir:{x:0,y:1},source:-1})
+seeds.push({x:x,y:canvas.height,dir:{x:0,y:-1},source:-1})
+
+}
+
+for(let i=0;i<edgeSeeds;i++){
+
+let y=i*(canvas.height/edgeSeeds)
+
+seeds.push({x:0,y:y,dir:{x:1,y:0},source:-1})
+seeds.push({x:canvas.width,y:y,dir:{x:-1,y:0},source:-1})
+
+}
+
+}
+
+return seeds
+
+}
+
+function generateFieldLines(){
+
+fieldLines=[]
+fieldLineSources=[]
+
+let seeds=generateSeeds()
+
+for(let seed of seeds){
+
+let x=seed.x
+let y=seed.y
+let dir=seed.dir
 
 let line=[]
 
-for(let s=0;s<700;s++){
+for(let s=0;s<800;s++){
 
 if(x<0||x>canvas.width||y<0||y>canvas.height) break
 
-if(nearPositiveCharge(x,y)&&s>5) break
-
-if(nearNegativeCharge(x,y)) break
-
-if(saddleRegion(x,y)) break
+if(nearCharge(x,y)&&s>5) break
 
 if(nearExistingLine(x,y)) break
 
@@ -210,7 +231,6 @@ let f=electricField(x,y)
 let mag=magnitude(f)
 
 let step=BASE_STEP/(1+mag*1e-10)
-
 step=Math.max(MIN_STEP,Math.min(MAX_STEP,step))
 
 let next=rk4(x,y,dir,step)
@@ -221,11 +241,32 @@ dir=next.dir
 
 }
 
-if(line.length>10) fieldLines.push(line)
+if(line.length>10){
+
+fieldLines.push(line)
+fieldLineSources.push(seed.source)
 
 }
 
 }
+
+}
+
+function drawArrow(x,y,dx,dy){
+
+let angle=Math.atan2(dy,dx)
+let size=6
+
+ctx.beginPath()
+
+ctx.moveTo(x,y)
+ctx.lineTo(x-size*Math.cos(angle-Math.PI/6),y-size*Math.sin(angle-Math.PI/6))
+ctx.lineTo(x-size*Math.cos(angle+Math.PI/6),y-size*Math.sin(angle+Math.PI/6))
+
+ctx.closePath()
+
+ctx.fillStyle="yellow"
+ctx.fill()
 
 }
 
@@ -233,49 +274,32 @@ function drawFieldLines(){
 
 generateFieldLines()
 
-for(let line of fieldLines){
+for(let i=0;i<fieldLines.length;i++){
+
+let line=fieldLines[i]
 
 ctx.beginPath()
-
 ctx.moveTo(line[0].x,line[0].y)
 
 for(let p of line){
-
 ctx.lineTo(p.x,p.y)
-
 }
 
-ctx.strokeStyle="red"
+ctx.lineWidth=1.5
+ctx.strokeStyle=fieldLineSources[i]>0?"red":"blue"
+
 ctx.stroke()
 
 }
 
-}
+for(let line of fieldLines){
 
-function drawFieldArrows(){
+for(let i=15;i<line.length;i+=30){
 
-for(let x=0;x<canvas.width;x+=80){
+let p=line[i]
+let prev=line[i-1]
 
-for(let y=0;y<canvas.height;y+=80){
-
-let f=electricField(x,y)
-
-let mag=magnitude(f)
-
-if(mag<1e-10) continue
-
-let dx=f.Ex/mag
-let dy=f.Ey/mag
-
-let size=Math.min(25,mag*1e-7)
-
-ctx.beginPath()
-
-ctx.moveTo(x,y)
-ctx.lineTo(x+dx*size,y+dy*size)
-
-ctx.strokeStyle="white"
-ctx.stroke()
+drawArrow(p.x,p.y,p.x-prev.x,p.y-prev.y)
 
 }
 
@@ -312,18 +336,14 @@ ctx.fillStyle="yellow"
 ctx.fill()
 
 let f=electricField(probe.x,probe.y)
-
 let mag=magnitude(f)
 
-document.getElementById("fieldValue").innerText=
-"E="+mag.toExponential(3)
+document.getElementById("fieldValue").innerText="E="+mag.toExponential(3)
 
 }
 
 canvas.onclick=e=>{
-
 probe={x:e.offsetX,y:e.offsetY}
-
 }
 
 canvas.onmousedown=e=>{
@@ -364,17 +384,13 @@ if(d<20) c.q*=-1
 })
 
 document.getElementById("chargeA").oninput=e=>{
-
 charges[0].q=parseInt(e.target.value)
 document.getElementById("valueA").innerText=e.target.value
-
 }
 
 document.getElementById("chargeB").oninput=e=>{
-
 charges[1].q=parseInt(e.target.value)
 document.getElementById("valueB").innerText=e.target.value
-
 }
 
 function draw(){
@@ -382,7 +398,6 @@ function draw(){
 ctx.clearRect(0,0,canvas.width,canvas.height)
 
 drawFieldLines()
-drawFieldArrows()
 drawCharges()
 drawProbe()
 

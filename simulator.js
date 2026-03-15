@@ -12,6 +12,7 @@ const MIN_STEP = 0.5
 const MAX_STEP = 6
 
 const LINE_MIN_DIST = 6
+const FIELD_EPS = 1e-3
 
 let probe=null
 let dragging=null
@@ -118,13 +119,14 @@ return false
 
 }
 
-function forbiddenDirection(c,angle){
+function forbiddenAngle(c,angle){
 
 for(let other of charges){
 
 if(other===c) continue
 
-if(other.q>0 && c.q>0){
+// 양전하 → 양전하 방향 금지
+if(c.q>0 && other.q>0){
 
 let dx=other.x-c.x
 let dy=other.y-c.y
@@ -143,9 +145,26 @@ return false
 
 }
 
+function getMidline(){
+
+if(charges.length!==2) return null
+
+let c1=charges[0]
+let c2=charges[1]
+
+if(Math.abs(c1.q)!==Math.abs(c2.q)) return null
+if(Math.sign(c1.q)!==Math.sign(c2.q)) return null
+
+if(Math.abs(c1.y-c2.y)>5) return null
+
+return (c1.x+c2.x)/2
+
+}
+
 function generateSeeds(){
 
 let seeds=[]
+let midX=getMidline()
 
 for(let c of charges){
 
@@ -157,7 +176,7 @@ for(let i=0;i<count;i++){
 
 let a=2*Math.PI*i/count
 
-if(forbiddenDirection(c,a)) continue
+if(forbiddenAngle(c,a)) continue
 
 seeds.push({
 x:c.x+16*Math.cos(a),
@@ -181,6 +200,8 @@ let edgeSeeds=32
 for(let i=0;i<edgeSeeds;i++){
 
 let x=i*(canvas.width/edgeSeeds)
+
+if(midX && Math.abs(x-midX)<20) continue
 
 seeds.push({x:x,y:0,dir:{x:0,y:1},source:-1})
 seeds.push({x:x,y:canvas.height,dir:{x:0,y:-1},source:-1})
@@ -220,15 +241,15 @@ let line=[]
 for(let s=0;s<800;s++){
 
 if(x<0||x>canvas.width||y<0||y>canvas.height) break
-
 if(nearCharge(x,y)&&s>5) break
-
 if(nearExistingLine(x,y)) break
 
 line.push({x,y})
 
 let f=electricField(x,y)
 let mag=magnitude(f)
+
+if(mag<FIELD_EPS) break
 
 let step=BASE_STEP/(1+mag*1e-10)
 step=Math.max(MIN_STEP,Math.min(MAX_STEP,step))
